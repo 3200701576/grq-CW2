@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.crawler import crawl_quotes_site
+from src.crawler import crawl_quotes_site, DEFAULT_POLITENESS_SECONDS, DEFAULT_TIMEOUT
 from src.indexer import InvertedIndex, build_inverted_index, load_index, save_index
 from src.search import format_print_word, find_pages, rank_urls, terms_from_cli_args
 
@@ -25,6 +25,8 @@ class SearchShell:
 
     index_path: Path
     index: InvertedIndex | None = None
+    fast: bool = False
+    timeout: float = DEFAULT_TIMEOUT
 
 
 def build_index_from_pages(shell: SearchShell, pages: dict[str, str]) -> str:
@@ -41,10 +43,10 @@ def run_build(shell: SearchShell) -> str:
     """
     Fetch all pages from quotes.toscrape.com and build the inverted index.
 
-    Exits early with an error message if the crawl fails.
+    Uses shell.fast and shell.timeout.  Exits early with an error message if the crawl fails.
     """
     try:
-        pages = crawl_quotes_site()
+        pages = crawl_quotes_site(fast=shell.fast, timeout=shell.timeout)
     except Exception as exc:
         return f"Crawl failed: {exc}"
     return build_index_from_pages(shell, pages)
@@ -161,8 +163,24 @@ def main(argv: list[str] | None = None) -> None:
         default=DEFAULT_INDEX_PATH,
         help="Path to the JSON inverted index file (default: ./data/index.json).",
     )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Skip the 6-second politeness window to speed up crawling. "
+             "Use only for local demos or when you have explicit permission from the target server.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT,
+        help=f"Per-request HTTP timeout in seconds (default: {DEFAULT_TIMEOUT}).",
+    )
     ns = parser.parse_args(argv)
-    shell = SearchShell(index_path=ns.index.resolve())
+    shell = SearchShell(
+        index_path=ns.index.resolve(),
+        fast=ns.fast,
+        timeout=ns.timeout,
+    )
     repl(shell)
 
 

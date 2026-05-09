@@ -1,6 +1,8 @@
 import time
 import unittest
 
+import requests
+
 from src.crawler import (
     PolitenessSession,
     _extract_same_site_links,
@@ -137,13 +139,57 @@ class PolitenessSessionTests(unittest.TestCase):
         ua = session._session.headers["User-Agent"]
         self.assertIn("XJCO3011", ua)
 
+    def test_get_text_retries_on_transient_failure(self) -> None:
+        session = PolitenessSession(timeout=5, max_retries=3)
+        attempts = []
+
+        def failing_then_ok(url: str, **kw: object) -> _MockResponse:
+            attempts.append(url)
+            if len(attempts) < 3:
+                raise requests.ConnectionError("transient")
+            return _MockResponse("success")
+
+        session._session.get = failing_then_ok  # type: ignore[method-assignment]
+        result = session.get_text("http://example.com/")
+        self.assertEqual(result, "success")
+        self.assertEqual(len(attempts), 3)
+
+    def test_get_text_raises_after_max_retries(self) -> None:
+        session = PolitenessSession(timeout=5, max_retries=2)
+        session._session.get = lambda url, **kw: (_ for _ in ()).throw(requests.ConnectionError("permanent"))  # type: ignore[method-assignment]
+        with self.assertRaises(requests.ConnectionError):
+            session.get_text("http://example.com/")
+
+    def test_crawl_fast_mode_skips_politeness_check(self) -> None:
+        html = "<html><body>hello</body></html>"
+        fetched: list[str] = []
+
+        def fast_fetch(url: str) -> str:
+            fetched.append(url)
+            return html
+
+        pages = crawl_quotes_site(
+            "https://quotes.toscrape.com/",
+            fetch_url=fast_fetch,
+            fast=True,
+        )
+        self.assertEqual(len(pages), 1)
+        self.assertIn("quotes.toscrape.com", list(pages.keys())[0])
 
 class _MockResponse:
-    def __init__(self, text: str, status_code: int = 200) -> None:
+    def __init__(
+        self,
+        text: str = "",
+        status_code: int = 200,
+        raise_exc: Exception | None = None,
+    ) -> None:
         self.text = text
         self.status_code = status_code
+        self._raise_exc = raise_exc
 
     def raise_for_status(self) -> None:
+        if self._raise_exc is not None:
+            raise self._raise_exc
         if self.status_code >= 400:
             raise Exception(f"HTTP {self.status_code}")
 
