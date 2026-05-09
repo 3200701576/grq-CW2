@@ -6,8 +6,73 @@ Token rules match `indexer.html_to_tokens` via the same ``TOKEN_PATTERN``.
 
 from __future__ import annotations
 
+import math
+
 from src.indexer import TOKEN_PATTERN, InvertedIndex
 
+
+# --- TF-IDF helpers -------------------------------------------------------
+
+def compute_total_docs(index: InvertedIndex) -> int:
+    """Return the number of unique documents across the entire index."""
+    urls: set[str] = set()
+    for postings in index.values():
+        urls.update(postings)
+    return len(urls)
+
+
+def _tf(posting: dict[str, int]) -> float:
+    """
+    Log-normalised term frequency.
+
+    tf(t,d) = 1 + log(freq) if freq > 0, else 0
+    """
+    freq = int(posting["frequency"])
+    return 1.0 + math.log(freq) if freq > 0 else 0.0
+
+
+def _idf(term: str, index: InvertedIndex, total_docs: int) -> float:
+    """
+    Inverse document frequency with smoothing to avoid division by zero.
+
+    idf(t) = log((N + 1) / (df(t) + 1)) + 1
+    """
+    df = len(index.get(term, {}))
+    return math.log((total_docs + 1) / (df + 1)) + 1
+
+
+def tfidf(term: str, url: str, index: InvertedIndex, total_docs: int) -> float:
+    """
+    TF-IDF score for a single term in a single document.
+
+    score = tf(t,d) × idf(t)
+    """
+    if term not in index or url not in index[term]:
+        return 0.0
+    return _tf(index[term][url]) * _idf(term, index, total_docs)
+
+
+def rank_urls(
+    urls: list[str],
+    terms: list[str],
+    index: InvertedIndex,
+    total_docs: int,
+) -> list[tuple[str, float]]:
+    """
+    Rank ``urls`` by the sum of their per-term TF-IDF scores for ``terms``.
+
+    Returns a sorted list of (url, score) pairs in descending score order.
+    Ties are broken by URL for deterministic output.
+    """
+    scored: list[tuple[str, float]] = []
+    for url in urls:
+        score = sum(tfidf(term, url, index, total_docs) for term in terms)
+        scored.append((url, score))
+    scored.sort(key=lambda x: (-x[1], x[0]))
+    return scored
+
+
+# --- Query parsing --------------------------------------------------------
 
 def terms_from_cli_args(args: list[str]) -> list[str]:
     """
@@ -56,19 +121,23 @@ def format_print_word(index: InvertedIndex, word: str) -> str:
 
 def find_pages(index: InvertedIndex, query_args: list[str]) -> list[str]:
     """
-    Return URLs containing **all** query terms (Boolean AND), sorted.
+    Return URLs containing **all** query terms (Boolean AND), ranked by TF-IDF score.
 
-    Empty query → empty list. If any term is absent from the index → empty list.
+    Documents are scored by the sum of their per-term TF-IDF values and returned
+    in descending score order. Empty query → empty list.
+    If any term is absent from the index → empty list.
 
     Complexity:
         Time  — O(W · U) where W = number of query terms, U = average URLs per term
                 (set construction from dict keys is O(U); set intersection is O(min_set)).
-        Space — O(U) for the intermediate URL sets built during intersection.
+                TF-IDF scoring adds O(W · |intersection|) time.
+        Space — O(U) for the intermediate URL sets plus O(|intersection|) for scored results.
     """
     terms = terms_from_cli_args(query_args)
     if not terms:
         return []
 
+    total_docs = compute_total_docs(index)
     sets: list[set[str]] = []
     for term in terms:
         if term not in index:
@@ -76,4 +145,5 @@ def find_pages(index: InvertedIndex, query_args: list[str]) -> list[str]:
         sets.append(set(index[term].keys()))
 
     intersection = set.intersection(*sets)
-    return sorted(intersection)
+    ranked = rank_urls(sorted(intersection), terms, index, total_docs)
+    return [url for url, _ in ranked]

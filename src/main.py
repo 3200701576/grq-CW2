@@ -14,7 +14,7 @@ from pathlib import Path
 
 from src.crawler import crawl_quotes_site
 from src.indexer import InvertedIndex, build_inverted_index, load_index, save_index
-from src.search import format_print_word, find_pages
+from src.search import format_print_word, find_pages, rank_urls, terms_from_cli_args
 
 DEFAULT_INDEX_PATH = Path(__file__).resolve().parent.parent / "data" / "index.json"
 
@@ -78,7 +78,7 @@ def run_print_cmd(shell: SearchShell, args: list[str]) -> str:
 
 def run_find_cmd(shell: SearchShell, args: list[str]) -> str:
     """
-    Execute a Boolean AND query and return all matching URLs.
+    Execute a Boolean AND query and return all matching URLs ranked by TF-IDF score.
 
     Returns usage message if no terms are supplied; returns "No matching pages."
     if no documents satisfy all query terms.
@@ -87,10 +87,18 @@ def run_find_cmd(shell: SearchShell, args: list[str]) -> str:
         return "No index in memory. Run build or load first."
     if not args:
         return "Usage: find <term> [<term> ...]"
+
+    terms = terms_from_cli_args(args)
     urls = find_pages(shell.index, args)
     if not urls:
         return "No matching pages."
-    return "\n".join(urls)
+
+    from src.search import compute_total_docs
+
+    total_docs = compute_total_docs(shell.index)
+    ranked = rank_urls(urls, terms, shell.index, total_docs)
+    lines = [f"{url}  (score={score:.4f})" for url, score in ranked]
+    return "\n".join(lines)
 
 
 def dispatch(line: str, shell: SearchShell) -> str | None:
