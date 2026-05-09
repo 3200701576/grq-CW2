@@ -118,6 +118,13 @@ def crawl_quotes_site(
     For tests or offline fixtures, pass ``fetch_url`` to supply HTML without
     making network calls. The default path uses ``PolitenessSession`` and
     enforces the coursework politeness window (>= 6 seconds between requests).
+
+    Complexity:
+        Time  — O(U + E) where U = number of unique pages discovered,
+                E = total number of links extracted across all pages.
+                Each page is fetched at most once; each link is processed once.
+        Space — O(U) for the ``visited`` dict (stores raw HTML for every page)
+                plus O(E) transient queue overhead during crawling.
     """
     base_url = base_url if urlparse(base_url).scheme else f"https://{base_url}"
     site_host = _site_host(base_url)

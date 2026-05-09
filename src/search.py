@@ -59,6 +59,11 @@ def find_pages(index: InvertedIndex, query_args: list[str]) -> list[str]:
     Return URLs containing **all** query terms (Boolean AND), sorted.
 
     Empty query → empty list. If any term is absent from the index → empty list.
+
+    Complexity:
+        Time  — O(W · U) where W = number of query terms, U = average URLs per term
+                (set construction from dict keys is O(U); set intersection is O(min_set)).
+        Space — O(U) for the intermediate URL sets built during intersection.
     """
     terms = terms_from_cli_args(query_args)
     if not terms:

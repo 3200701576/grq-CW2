@@ -38,6 +38,11 @@ def build_index_from_pages(shell: SearchShell, pages: dict[str, str]) -> str:
 
 
 def run_build(shell: SearchShell) -> str:
+    """
+    Fetch all pages from quotes.toscrape.com and build the inverted index.
+
+    Exits early with an error message if the crawl fails.
+    """
     try:
         pages = crawl_quotes_site()
     except Exception as exc:
@@ -46,6 +51,7 @@ def run_build(shell: SearchShell) -> str:
 
 
 def run_load(shell: SearchShell) -> str:
+    """Load a previously saved index from disk into memory."""
     path = shell.index_path
     if not path.is_file():
         return f"No index file at {path}. Run build first."
@@ -57,6 +63,11 @@ def run_load(shell: SearchShell) -> str:
 
 
 def run_print_cmd(shell: SearchShell, args: list[str]) -> str:
+    """
+    Pretty-print postings for a single term.
+
+    Returns usage message if no term is supplied.
+    """
     if shell.index is None:
         return "No index in memory. Run build or load first."
     if not args:
@@ -66,6 +77,12 @@ def run_print_cmd(shell: SearchShell, args: list[str]) -> str:
 
 
 def run_find_cmd(shell: SearchShell, args: list[str]) -> str:
+    """
+    Execute a Boolean AND query and return all matching URLs.
+
+    Returns usage message if no terms are supplied; returns "No matching pages."
+    if no documents satisfy all query terms.
+    """
     if shell.index is None:
         return "No index in memory. Run build or load first."
     if not args:
@@ -77,6 +94,12 @@ def run_find_cmd(shell: SearchShell, args: list[str]) -> str:
 
 
 def dispatch(line: str, shell: SearchShell) -> str | None:
+    """
+    Parse and execute a single shell command line.
+
+    Returns the command output string, ``"__QUIT__"`` for exit signals,
+    or ``None`` for no-op (blank line).
+    """
     stripped = line.strip()
     if not stripped:
         return None

@@ -26,7 +26,12 @@ InvertedIndex = dict[str, dict[str, Posting]]
 
 
 def html_to_tokens(html: str) -> list[str]:
-    """Extract visible text from HTML and split into lowercase alphanumeric tokens."""
+    """
+    Extract visible text from HTML and split into lowercase alphanumeric tokens.
+
+    Complexity: O(n) where n = length of the HTML string.
+    BeautifulSoup parsing is O(n); regex tokenisation is O(n) on the extracted text.
+    """
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(separator=" ", strip=True)
     return TOKEN_PATTERN.findall(text.lower())
@@ -38,6 +43,12 @@ def build_inverted_index(pages: dict[str, str]) -> InvertedIndex:
 
     Search is case-insensitive at indexing time by normalising tokens to lowercase.
     Positions refer to indices in the document token sequence after html_to_tokens().
+
+    Complexity:
+        Time  — O(T) where T = total number of tokens across all documents
+                (every token is processed exactly once per occurrence).
+        Space — O(V) where V = number of unique term–URL pairs stored
+                in the postings dictionary (proportional to vocabulary size × avg URLs).
     """
     inverted: InvertedIndex = {}
 
@@ -53,7 +64,11 @@ def build_inverted_index(pages: dict[str, str]) -> InvertedIndex:
 
 
 def save_index(index: InvertedIndex, path: str | Path) -> None:
-    """Serialise the inverted index as UTF-8 JSON (single file)."""
+    """
+    Serialise the inverted index as UTF-8 JSON (single file).
+
+    Complexity: O(V) time and space to serialise V posting entries to disk.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
@@ -61,7 +76,11 @@ def save_index(index: InvertedIndex, path: str | Path) -> None:
 
 
 def load_index(path: str | Path) -> InvertedIndex:
-    """Load an inverted index previously written by save_index."""
+    """
+    Load an inverted index previously written by save_index.
+
+    Complexity: O(V) time and space to deserialise V posting entries from disk.
+    """
     raw: Any
     with Path(path).open(encoding="utf-8") as f:
         raw = json.load(f)
