@@ -1,6 +1,12 @@
+import time
 import unittest
 
-from src.crawler import _extract_same_site_links, _normalize_url, crawl_quotes_site
+from src.crawler import (
+    PolitenessSession,
+    _extract_same_site_links,
+    _normalize_url,
+    crawl_quotes_site,
+)
 
 
 class CrawlerTests(unittest.TestCase):
@@ -98,6 +104,48 @@ class CrawlerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             crawl_quotes_site("https://quotes.toscrape.com/", fetch_url=bad_fetch)
         self.assertIn("network error", str(ctx.exception))
+
+
+class PolitenessSessionTests(unittest.TestCase):
+    def test_get_text_returns_body(self) -> None:
+        session = PolitenessSession(timeout=5)
+        session._session.get = lambda url, **kw: _MockResponse("hello world")
+        self.assertEqual(session.get_text("http://example.com/"), "hello world")
+
+    def test_get_text_raises_on_http_error(self) -> None:
+        session = PolitenessSession(timeout=5)
+        session._session.get = lambda url, **kw: _MockResponse("", status_code=404)
+        with self.assertRaises(Exception) as ctx:
+            session.get_text("http://example.com/")
+        self.assertIn("404", str(ctx.exception))
+
+    def test_get_text_enforces_politeness_window(self) -> None:
+        session = PolitenessSession(politeness_seconds=1.0, timeout=5)
+        session._session.get = lambda url, **kw: _MockResponse("body")
+        session._last_fetch_monotonic = time.monotonic() - 0.5
+        before = time.monotonic()
+        session.get_text("http://example.com/")
+        elapsed = time.monotonic() - before
+        self.assertGreaterEqual(elapsed, 0.5)
+
+    def test_get_text_custom_user_agent(self) -> None:
+        session = PolitenessSession(user_agent="TestBot/1.0")
+        self.assertEqual(session._session.headers["User-Agent"], "TestBot/1.0")
+
+    def test_get_text_default_user_agent_contains_coursework_id(self) -> None:
+        session = PolitenessSession()
+        ua = session._session.headers["User-Agent"]
+        self.assertIn("XJCO3011", ua)
+
+
+class _MockResponse:
+    def __init__(self, text: str, status_code: int = 200) -> None:
+        self.text = text
+        self.status_code = status_code
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise Exception(f"HTTP {self.status_code}")
 
 
 if __name__ == "__main__":
