@@ -88,6 +88,8 @@ def _normalize_url(url: str, site_host: str) -> str | None:
 
 def _extract_same_site_links(html: str, page_url: str, site_host: str) -> set[str]:
     soup = BeautifulSoup(html, "html.parser")
+    for base_tag in soup.find_all("base"):
+        base_tag.decompose()
     found: set[str] = set()
     for tag in soup.find_all("a", href=True):
         raw_href = tag["href"].strip()
@@ -123,6 +125,7 @@ def crawl_quotes_site(
     if not start:
         raise ValueError(f"Could not normalize base URL: {base_url!r}")
 
+    fetch_fn: Callable[[str], str]
     if fetch_url is None:
         if politeness_seconds < DEFAULT_POLITENESS_SECONDS:
             raise ValueError(
@@ -134,7 +137,9 @@ def crawl_quotes_site(
             politeness_seconds=politeness_seconds,
             timeout=timeout,
         )
-        fetch_url = http.get_text
+        fetch_fn = http.get_text
+    else:
+        fetch_fn = fetch_url
 
     visited: dict[str, str] = {}
     queue: deque[str] = deque([start])
@@ -144,7 +149,7 @@ def crawl_quotes_site(
         if url in visited:
             continue
 
-        html = fetch_url(url)
+        html = fetch_fn(url)
         visited[url] = html
 
         for link in _extract_same_site_links(html, url, site_host):
