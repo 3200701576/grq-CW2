@@ -25,7 +25,6 @@ class SearchShell:
 
     index_path: Path
     index: InvertedIndex | None = None
-    fast: bool = False
     timeout: float = DEFAULT_TIMEOUT
 
 
@@ -43,10 +42,10 @@ def run_build(shell: SearchShell) -> str:
     """
     Fetch all pages from quotes.toscrape.com and build the inverted index.
 
-    Uses shell.fast and shell.timeout.  Exits early with an error message if the crawl fails.
+    Uses shell.timeout.  Exits early with an error message if the crawl fails.
     """
     try:
-        pages = crawl_quotes_site(fast=shell.fast, timeout=shell.timeout)
+        pages = crawl_quotes_site(timeout=shell.timeout)
     except Exception as exc:
         return f"Crawl failed: {exc}"
     return build_index_from_pages(shell, pages)
@@ -164,12 +163,6 @@ def main(argv: list[str] | None = None) -> None:
         help="Path to the JSON inverted index file (default: ./data/index.json).",
     )
     parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Skip the 6-second politeness window to speed up crawling. "
-             "Use only for local demos or when you have explicit permission from the target server.",
-    )
-    parser.add_argument(
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT,
@@ -178,7 +171,6 @@ def main(argv: list[str] | None = None) -> None:
     ns = parser.parse_args(argv)
     shell = SearchShell(
         index_path=ns.index.resolve(),
-        fast=ns.fast,
         timeout=ns.timeout,
     )
     repl(shell)

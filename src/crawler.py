@@ -2,7 +2,7 @@
 Web crawler for https://quotes.toscrape.com/
 
 Respects a minimum delay between successive HTTP requests (politeness window).
-Supports optional retry logic and fast mode for local/demonstration use.
+Supports retry logic with exponential backoff.
 """
 
 from __future__ import annotations
@@ -124,7 +124,6 @@ def crawl_quotes_site(
     max_retries: int = DEFAULT_MAX_RETRIES,
     session: PolitenessSession | None = None,
     fetch_url: Callable[[str], str] | None = None,
-    fast: bool = False,
 ) -> dict[str, str]:
     """
     Crawl all HTML pages reachable via same-site links starting from base_url.
@@ -137,13 +136,10 @@ def crawl_quotes_site(
     Args:
         base_url: Starting URL for the crawl.
         politeness_seconds: Minimum gap between successive HTTP requests.
-            Ignored when ``fast=True``.
         timeout: Per-request timeout in seconds.
         max_retries: Maximum retry attempts per URL on transient failures.
         session: Optional pre-configured PolitenessSession (takes ownership of politeness).
         fetch_url: Override HTTP fetch function (bypasses session and politeness entirely).
-        fast: If True, skip the 6-second politeness window to speed up local demos.
-            WARNING: Only use when you own the target server or have explicit permission.
 
     Complexity:
         Time  — O(U + E) where U = number of unique pages discovered,
@@ -160,15 +156,8 @@ def crawl_quotes_site(
 
     fetch_fn: Callable[[str], str]
     if fetch_url is None:
-        if not fast and politeness_seconds < DEFAULT_POLITENESS_SECONDS:
-            raise ValueError(
-                f"politeness_seconds must be >= {DEFAULT_POLITENESS_SECONDS} "
-                f"for live crawling (got {politeness_seconds}). "
-                "Use fast=True to disable the politeness window."
-            )
-
         http = session or PolitenessSession(
-            politeness_seconds=0.0 if fast else politeness_seconds,
+            politeness_seconds=politeness_seconds,
             timeout=timeout,
             max_retries=max_retries,
         )

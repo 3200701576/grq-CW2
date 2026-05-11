@@ -95,14 +95,12 @@ Built index: 10 pages, 847 unique terms. Saved to data/index.json.
 ```
 
 > **Note:** `build` fetches pages over the network. With the default 6-second politeness
-> window, a full crawl takes approximately **90 seconds**.  Use `--fast` to disable the
-> politeness window for local demos.
+> window, a full crawl takes approximately **90 seconds**.
 
 **Optional flags (CLI-level):**
 
 | Flag | Description |
 |---|---|
-| `--fast` | Skip the 6-second politeness window to speed up crawling. **Use only for local demos or with explicit permission.** |
 | `--timeout` | Per-request HTTP timeout in seconds (default: 60 s). Increase if the server is slow to respond. |
 
 #### `load`
@@ -250,7 +248,6 @@ index is small enough that JSON serialisation and deserialisation complete in we
 | Empty query | `find_pages` and `run_find_cmd` return usage message |
 | Non-existent term | `format_print_word` returns "No postings for term X" |
 | HTTP error during crawl | `PolitenessSession` retries up to 3 times with exponential backoff; `raise_for_status()` propagates persistent failures; caught by `run_build` |
-| Politeness window too short | `crawl_quotes_site` raises `ValueError` if `politeness_seconds < 6` for live crawling unless `fast=True` |
 | Invalid CLI arguments | `dispatch` catches `shlex.split` errors and returns a parse error message |
 
 ---

@@ -160,22 +160,6 @@ class PolitenessSessionTests(unittest.TestCase):
         with self.assertRaises(requests.ConnectionError):
             session.get_text("http://example.com/")
 
-    def test_crawl_fast_mode_skips_politeness_check(self) -> None:
-        html = "<html><body>hello</body></html>"
-        fetched: list[str] = []
-
-        def fast_fetch(url: str) -> str:
-            fetched.append(url)
-            return html
-
-        pages = crawl_quotes_site(
-            "https://quotes.toscrape.com/",
-            fetch_url=fast_fetch,
-            fast=True,
-        )
-        self.assertEqual(len(pages), 1)
-        self.assertIn("quotes.toscrape.com", list(pages.keys())[0])
-
 class _MockResponse:
     def __init__(
         self,
